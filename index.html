@@ -5,30 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HOKI 쇼츠 메이커</title>
 <style>
+* { box-sizing: border-box; }
 body {
-  background: #111827;
-  color: white;
-  font-family: sans-serif;
-  text-align: center;
-  padding: 25px;
+  margin: 0;
+  padding: 22px 16px;
+  background: #111827;
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
 }
 h1 { color: #38bdf8; }
+p { line-height: 1.5; }
 textarea {
-  width: 100%;
-  height: 150px;
-  font-size: 17px;
-  border-radius: 10px;
-  padding: 10px;
-  box-sizing: border-box;
+  width: 100%;
+  height: 110px;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+select, button {
+  padding: 13px;
+  margin: 8px 4px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 16px;
 }
 button {
-  background: #0284c7;
-  color: white;
-  padding: 15px 30px;
-  border: none;
-  border-radius: 10px;
-  font-size: 18px;
-  margin-top: 15px;
+  background: #0284c7;
+  color: white;
+  font-weight: bold;
+}
+button:disabled { opacity: 0.5; }
+#preview {
+  display: block;
+  width: min(100%, 360px);
+  aspect-ratio: 9 / 16;
+  margin: 20px auto;
+  background: #020617;
+  border-radius: 14px;
+}
+#status { color: #7dd3fc; min-height: 28px; }
+#downloadLink {
+  display: none;
+  margin: 12px;
+  padding: 13px 18px;
+  background: #16a34a;
+  color: white;
+  border-radius: 9px;
+  text-decoration: none;
 }
 </style>
 </head>
@@ -38,21 +62,148 @@ button {
 <textarea id="prompt" placeholder="예: 아름다운 바다 위로 떠오르는 태양"></textarea>
 <p>영상 시대를 선택하세요</p>
 <select id="era">
-  <option value="1970년대">1970년대</option>
-  <option value="1980년대" selected>1980년대</option>
-  <option value="1990년대">1990년대</option>
-  <option value="현재">현재</option>
+<option value="1970년대">1970년대</option>
+<option value="1980년대" selected>1980년대</option>
+<option value="1990년대">1990년대</option>
+<option value="현재">현재</option>
 </select>
-<br>
-<button onclick="makeVideo()">영상 만들기</button>
-<p id="result"></p>
+<canvas id="preview" width="360" height="640"></canvas>
+<div>
+<button onclick="startPreview()">미리보기 시작</button>
+<button onclick="stopPreview()">일시정지</button>
+</div>
+<div>
+<button id="makeButton" onclick="makeVideo()">🎥 10초 영상 만들기</button>
+</div>
+<p id="status">영상 내용을 입력하고 미리보기를 시작해 보세요.</p>
+<a id="downloadLink" href="#" download="hoki-video.webm">영상 다운로드</a>
 <script>
-function makeVideo() {
-  const p = document.getElementById("prompt").value;
-  document.getElementById("result").innerText =
-    p ? "✨ 영상 제작 준비 완료! 입력 내용: " + p
-      : "먼저 영상 내용을 입력해 주세요.";
+const canvas = document.getElementById("preview");
+const ctx = canvas.getContext("2d");
+const promptInput = document.getElementById("prompt");
+const eraInput = document.getElementById("era");
+const statusText = document.getElementById("status");
+const makeButton = document.getElementById("makeButton");
+const downloadLink = document.getElementById("downloadLink");
+let animationId = null;
+let running = false;
+let startTime = 0;
+let lastUrl = null;
+
+function drawScene(time) {
+const w = canvas.width, h = canvas.height;
+const t = time / 1000;
+const gradient = ctx.createLinearGradient(0, 0, 0, h);
+gradient.addColorStop(0, "#0f172a");
+gradient.addColorStop(0.55, "#164e63");
+gradient.addColorStop(1, "#0c4a6e");
+ctx.fillStyle = gradient;
+ctx.fillRect(0, 0, w, h);
+const sunY = 190 + Math.sin(t) * 12;
+ctx.beginPath();
+ctx.arc(180, sunY, 65, 0, Math.PI * 2);
+ctx.fillStyle = "#fbbf24";
+ctx.fill();
+for (let i = 0; i < 7; i++) {
+const y = 330 + i * 35;
+const wave = Math.sin(t * 1.5 + i) * 15;
+ctx.beginPath();
+ctx.moveTo(0, y + wave);
+ctx.quadraticCurveTo(180, y - 20 - wave, 360, y + wave);
+ctx.strokeStyle = "rgba(255,255,255,0.35)";
+ctx.lineWidth = 3;
+ctx.stroke();
 }
+ctx.fillStyle = "rgba(0,0,0,0.35)";
+ctx.fillRect(15, 430, 330, 155);
+ctx.textAlign = "center";
+ctx.fillStyle = "#ffffff";
+ctx.font = "bold 22px sans-serif";
+ctx.fillText("HOKI SHORTS", 180, 470);
+const words = (promptInput.value.trim() || "나만의 멋진 이야기").slice(0, 80);
+const lines = words.match(/.{1,15}/g) || [words];
+ctx.font = "bold 23px sans-serif";
+lines.slice(0, 3).forEach((line, index) => {
+ctx.fillText(line, 180, 515 + index * 30);
+});
+ctx.font = "16px sans-serif";
+ctx.fillStyle = "#bae6fd";
+ctx.fillText(eraInput.value, 180, 610);
+}
+function animate(time) {
+if (!running) return;
+drawScene(time - startTime);
+animationId = requestAnimationFrame(animate);
+}
+function startPreview() {
+if (running) return;
+running = true;
+startTime = performance.now();
+animationId = requestAnimationFrame(animate);
+statusText.textContent = "✨ 영상 미리보기가 실행 중입니다.";
+}
+function stopPreview() {
+running = false;
+cancelAnimationFrame(animationId);
+drawScene(0);
+statusText.textContent = "미리보기가 일시정지되었습니다.";
+}
+async function makeVideo() {
+if (!promptInput.value.trim()) {
+statusText.textContent = "먼저 영상 내용을 입력해 주세요.";
+return;
+}
+if (!canvas.captureStream || !window.MediaRecorder) {
+statusText.textContent = "이 브라우저에서는 영상 저장 기능을 지원하지 않습니다.";
+return;
+}
+let stream;
+try {
+const types = ["video/mp4", "video/webm;codecs=vp9", "video/webm"];
+let mimeType = "";
+for (const type of types) {
+if (MediaRecorder.isTypeSupported(type)) {
+mimeType = type;
+break;
+}
+}
+if (!mimeType) {
+statusText.textContent = "지원하는 영상 형식을 찾지 못했습니다.";
+return;
+}
+startPreview();
+stream = canvas.captureStream(30);
+const recorder = new MediaRecorder(stream, { mimeType });
+const chunks = [];
+recorder.ondataavailable = (event) => {
+if (event.data && event.data.size > 0) chunks.push(event.data);
+};
+recorder.onstop = () => {
+const blob = new Blob(chunks, { type: mimeType });
+if (lastUrl) URL.revokeObjectURL(lastUrl);
+lastUrl = URL.createObjectURL(blob);
+const extension = mimeType.includes("mp4") ? "mp4" : "webm";
+downloadLink.href = lastUrl;
+downloadLink.download = "hoki-video." + extension;
+downloadLink.style.display = "inline-block";
+statusText.textContent = "🎉 영상 제작 완료! 아래 다운로드를 눌러 저장하세요.";
+makeButton.disabled = false;
+stream.getTracks().forEach(track => track.stop());
+};
+makeButton.disabled = true;
+downloadLink.style.display = "none";
+statusText.textContent = "🎬 10초 영상을 만들고 있습니다...";
+recorder.start();
+setTimeout(() => {
+if (recorder.state === "recording") recorder.stop();
+}, 10000);
+} catch (error) {
+if (stream) stream.getTracks().forEach(track => track.stop());
+makeButton.disabled = false;
+statusText.textContent = "영상 저장 중 문제가 발생했습니다. 브라우저 지원 여부를 확인해 주세요.";
+}
+}
+drawScene(0);
 </script>
 </body>
 </html>
