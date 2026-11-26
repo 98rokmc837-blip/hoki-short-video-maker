@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+DOCTYPE html>
+
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#101827">
-<title>HOKI 2.2 - 쇼츠 메이커</title>
+<title>HOKI 2.3 - 쇼츠 메이커</title>
 <style>
 :root{--bg:#0b1220;--panel:#131e30;--line:#26364d;--text:#f3f6fb;--muted:#a9b6c9;--accent:#91aaff;--good:#63d6a5}
 *{box-sizing:border-box}
@@ -18,6 +19,9 @@ body{margin:0;background:linear-gradient(160deg,#101b30,#080d17 70%);color:var(-
 .panel{background:rgba(19,30,48,.94);border:1px solid var(--line);border-radius:18px;padding:17px;box-shadow:0 12px 35px #0003}
 .panel h2{font-size:17px;margin:0 0 14px}
 .field{margin:13px 0}
+.sceneColors{display:grid;gap:8px;margin-top:9px}
+.sceneColors label{display:flex;align-items:center;justify-content:space-between;background:#0b1423;border:1px solid #33445e;border-radius:10px;padding:8px 10px;color:var(--text);margin:0}
+.sceneColors input[type=color]{width:54px;height:38px;padding:3px;border:0;background:transparent;cursor:pointer}
 .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}
 textarea,input,select{width:100%;background:#0b1423;color:var(--text);border:1px solid #33445e;border-radius:11px;padding:12px;font:inherit;outline:none}
 textarea{min-height:120px;resize:vertical}
@@ -43,7 +47,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <body>
 <div class="wrap">
 <header class="top">
-  <div class="brand">HOKI <span>2.2</span></div>
+  <div class="brand">HOKI <span>2.3</span></div>
   <div class="tag">무료 쇼츠 메이커 · 15초</div>
 </header>
 <main class="layout">
@@ -62,7 +66,16 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <option value="calm">차분하고 잔잔한</option>
       <option value="bold">강렬하고 단호한</option>
     </select>
-    <div class="hint">장면마다 서로 다른 배경색이 자동으로 적용돼요.</div>
+    <div class="hint">영상 분위기를 선택해요. 장면별 배경색은 아래에서 직접 바꿀 수 있어요.</div>
+  </div>
+  <div class="field">
+    <label>장면별 배경색 직접 선택</label>
+    <div class="hint">각 장면 옆의 색상 버튼을 누르면 원하는 색으로 바뀌어요.</div>
+    <div class="sceneColors">
+      <label for="bgColor0">1장면 배경색 <input id="bgColor0" type="color" value="#302744"></label>
+      <label for="bgColor1">2장면 배경색 <input id="bgColor1" type="color" value="#72506d"></label>
+      <label for="bgColor2">3장면 배경색 <input id="bgColor2" type="color" value="#59412f"></label>
+    </div>
   </div>
   <div class="field">
     <label for="subtitleSize">자막 글자 크기</label>
@@ -104,7 +117,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <div class="hint" style="margin-top:12px">화면 비율 9:16 · 총 15초 · 장면당 5초</div>
 </aside>
 </main>
-<div class="foot">HOKI 2.2 · 장면별 배경 · 자막 조절 · 부드러운 전환</div>
+<div class="foot">HOKI 2.3 · 장면별 배경 · 자막 조절 · 부드러운 전환</div>
 </div>
 <script>
 (function(){
@@ -129,181 +142,199 @@ const scenePalettes={
  bold:[['#351b2b','#883b50','#fff0df'],['#4a2032','#b34b55','#fff0df'],['#572b25','#bd6545','#fff3dc']]
 };
 let activePalette=palettes.warm;
-function paletteForScene(index){return (scenePalettes[$('style').value]||scenePalettes.warm)[index]||palettes.warm;}
+const chosenBackgrounds=[null,null,null];
+function shadeColor(hex,amount){
+  const n=parseInt(hex.slice(1),16),r=Math.max(0,Math.min(255,(n>>16)+amount)),g=Math.max(0,Math.min(255,((n>>8)&255)+amount)),b=Math.max(0,Math.min(255,(n&255)+amount));
+  return '#'+(1<<24|r<<16|g<<8|b).toString(16).slice(1);
+}
+function paletteForScene(index){
+  const base=(scenePalettes[$('style').value]||scenePalettes.warm)[index]||palettes.warm;
+  const chosen=chosenBackgrounds[index];
+  return chosen?[chosen,shadeColor(chosen,-35),base[2]]:base;
+}
+function syncBackgroundInputs(){
+  for(let i=0;i<3;i++){
+    const base=(scenePalettes[$('style').value]||scenePalettes.warm)[i];
+    const input=$('bgColor'+i);
+    if(input)input.value=chosenBackgrounds[i]||base[0];
+  }
+}
 
 function setStatus(message){$('status').textContent=message}
-function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]))}
 
 function splitSentences(text){
-  return text.replace(/\s+/g,' ').trim().split(/(?<=[.!?。！？])\s*|(?<=요)\s+|(?<=다)\s+/).filter(Boolean);
+return text.replace(/\s+/g,' ').trim().split(/(?<=[.!?。！？])\s*|(?<=요)\s+|(?<=다)\s+/).filter(Boolean);
 }
 function makeScenes(){
-  const raw=$('topic').value.trim();
-  if(!raw){setStatus('먼저 영상 주제를 입력해 주세요.');return false}
-  const parts=splitSentences(raw);
-  let first='',middle='',last='';
-  if(parts.length>=3){
-    first=parts[0];
-    middle=parts.slice(1,-1).join(' ');
-    last=parts[parts.length-1];
-  }else if(parts.length===2){
-    first=parts[0];middle=parts[1];last=$('signature').value.trim()||'오늘도 당신을 응원합니다';
-  }else{
-    const chars=Array.from(raw),a=Math.max(1,Math.floor(chars.length*.38)),b=Math.max(a+1,Math.floor(chars.length*.72));
-    first=chars.slice(0,a).join('');
-    middle=chars.slice(a,b).join('')||raw;
-    last=chars.slice(b).join('')||$('signature').value.trim()||'오늘도 당신을 응원합니다';
-  }
-  if(!middle)middle='작은 마음 하나가 하루를 바꾸기도 합니다.';
-  if(!last)last=$('signature').value.trim()||'오늘도 당신을 응원합니다';
-  scenes=[
-    {title:'잠깐, 생각해 보세요',text:first},
-    {title:'우리에게 필요한 이야기',text:middle},
-    {title:'오늘의 한마디',text:last}
-  ];
-  $('sceneList').innerHTML=scenes.map((s,i)=>'<div class="scene"><b>장면 '+(i+1)+' · '+s.title+' · 5초</b>'+escapeHtml(s.text)+'</div>').join('');
-  $('exportBtn').disabled=false;
-  activePalette=palettes[$('style').value]||palettes.warm;
-  drawScene(0,0);
-  setStatus('3개 장면을 만들었어요. 장면마다 배경이 달라지고 전환은 부드럽게 이어져요.');
-  return true;
+const raw=$('topic').value.trim();
+if(!raw){setStatus('먼저 영상 주제를 입력해 주세요.');return false}
+const parts=splitSentences(raw);
+let first='',middle='',last='';
+if(parts.length>=3){
+first=parts[0];
+middle=parts.slice(1,-1).join(' ');
+last=parts[parts.length-1];
+}else if(parts.length===2){
+first=parts[0];middle=parts[1];last=$('signature').value.trim()||'오늘도 당신을 응원합니다';
+}else{
+const chars=Array.from(raw),a=Math.max(1,Math.floor(chars.length*.38)),b=Math.max(a+1,Math.floor(chars.length*.72));
+first=chars.slice(0,a).join('');
+middle=chars.slice(a,b).join('')||raw;
+last=chars.slice(b).join('')||$('signature').value.trim()||'오늘도 당신을 응원합니다';
+}
+if(!middle)middle='작은 마음 하나가 하루를 바꾸기도 합니다.';
+if(!last)last=$('signature').value.trim()||'오늘도 당신을 응원합니다';
+scenes=[
+{title:'잠깐, 생각해 보세요',text:first},
+{title:'우리에게 필요한 이야기',text:middle},
+{title:'오늘의 한마디',text:last}
+];
+$('sceneList').innerHTML=scenes.map((s,i)=>'<div class="scene"><b>장면 '+(i+1)+' · '+s.title+' · 5초</b>'+escapeHtml(s.text)+'</div>').join('');
+$('exportBtn').disabled=false;
+activePalette=palettes[$('style').value]||palettes.warm;
+drawScene(0,0);
+setStatus('3개 장면을 만들었어요. 장면마다 배경이 달라지고 전환은 부드럽게 이어져요.');
+return true;
 }
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
 function wrapKorean(text,maxWidth,font){
-  ctx.font=font;
-  const chars=Array.from(text);
-  const lines=[];let line='';
-  for(const ch of chars){
-    const test=line+ch;
-    if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=ch}else{line=test}
-  }
-  if(line)lines.push(line);
-  return lines;
+ctx.font=font;
+const chars=Array.from(text);
+const lines=[];let line='';
+for(const ch of chars){
+const test=line+ch;
+if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=ch}else{line=test}
+}
+if(line)lines.push(line);
+return lines;
 }
 function drawBackground(index){
-  const w=canvas.width,h=canvas.height,p=paletteForScene(index);
-  const grad=ctx.createLinearGradient(0,0,w,h);
-  grad.addColorStop(0,p[0]);grad.addColorStop(1,p[1]);
-  ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
-  ctx.save();ctx.globalAlpha=.12;
-  for(let i=0;i<14;i++){
-    ctx.beginPath();ctx.arc((i*137+80)%w,(i*211+50)%h,30+(i%4)*18,0,Math.PI*2);
-    ctx.fillStyle=p[2];ctx.fill();
-  }
-  ctx.restore();
+const w=canvas.width,h=canvas.height,p=paletteForScene(index);
+const grad=ctx.createLinearGradient(0,0,w,h);
+grad.addColorStop(0,p[0]);grad.addColorStop(1,p[1]);
+ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
+ctx.save();ctx.globalAlpha=.12;
+for(let i=0;i<14;i++){
+ctx.beginPath();ctx.arc((i137+80)%w,(i211+50)%h,30+(i%4)18,0,Math.PI2);
+ctx.fillStyle=p[2];ctx.fill();
+}
+ctx.restore();
 }
 function drawScene(index,local){
-  const w=canvas.width,h=canvas.height,p=paletteForScene(index);
-  const s=scenes[index]||{title:'HOKI 2.2',text:'당신의 이야기를 짧은 영상으로 만들어 보세요.'};
-  drawBackground(index);
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillStyle=p[2];ctx.font='bold 25px sans-serif';
-  ctx.fillText('H O K I   2 . 2',w/2,100);
-  ctx.fillStyle='rgba(255,255,255,.14)';roundRect(38,190,w-76,560,30);ctx.fill();
-  const fade=Math.min(1,local/.35,(1-local)/.35);
-  ctx.save();ctx.globalAlpha=Math.max(.18,Math.min(1,fade));
-  ctx.fillStyle=p[2];ctx.font='bold 32px sans-serif';
-  ctx.fillText(s.title,w/2,275);
-  let size=Number($('subtitleSize').value)||43;
-  let lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif');
-  while(lines.length>9&&size>30){size-=3;lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif')}
-  ctx.font='bold '+size+'px sans-serif';ctx.fillStyle='#fff';
-  ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=8;ctx.shadowOffsetY=3;
-  const lineGap=size*1.48;
-  const visible=lines.slice(0,9);
-  const position=$('subtitlePosition').value;
-  const anchorY=position==='upper'?380:(position==='lower'?625:500);
-  let y=anchorY-(visible.length-1)*lineGap/2;
-  visible.forEach(line=>{ctx.fillText(line,w/2,y);y+=lineGap});
-  ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
-  ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='24px sans-serif';
-  ctx.fillText(index===2?'끝까지 시청해 주셔서 감사합니다':'당신의 하루에 작은 울림이 되기를',w/2,810);
-  ctx.restore();
-  ctx.fillStyle='rgba(255,255,255,.28)';roundRect(70,885,w-140,9,9);ctx.fill();
-  ctx.fillStyle=p[2];roundRect(70,885,(w-140)*Math.max(0,Math.min(1,local)),9,9);ctx.fill();
+const w=canvas.width,h=canvas.height,p=paletteForScene(index);
+const s=scenes[index]||{title:'HOKI 2.3',text:'당신의 이야기를 짧은 영상으로 만들어 보세요.'};
+drawBackground(index);
+ctx.textAlign='center';ctx.textBaseline='middle';
+ctx.fillStyle=p[2];ctx.font='bold 25px sans-serif';
+ctx.fillText('H O K I   2 . 2',w/2,100);
+ctx.fillStyle='rgba(255,255,255,.14)';roundRect(38,190,w-76,560,30);ctx.fill();
+const fade=Math.min(1,local/.35,(1-local)/.35);
+ctx.save();ctx.globalAlpha=Math.max(.18,Math.min(1,fade));
+ctx.fillStyle=p[2];ctx.font='bold 32px sans-serif';
+ctx.fillText(s.title,w/2,275);
+let size=Number($('subtitleSize').value)||43;
+let lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif');
+while(lines.length>9&&size>30){size-=3;lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif')}
+ctx.font='bold '+size+'px sans-serif';ctx.fillStyle='#fff';
+ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=8;ctx.shadowOffsetY=3;
+const lineGap=size*1.48;
+const visible=lines.slice(0,9);
+const position=$('subtitlePosition').value;
+const anchorY=position==='upper'?380:(position==='lower'?625:500);
+let y=anchorY-(visible.length-1)lineGap/2;
+visible.forEach(line=>{ctx.fillText(line,w/2,y);y+=lineGap});
+ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='24px sans-serif';
+ctx.fillText(index===2?'끝까지 시청해 주셔서 감사합니다':'당신의 하루에 작은 울림이 되기를',w/2,810);
+ctx.restore();
+ctx.fillStyle='rgba(255,255,255,.28)';roundRect(70,885,w-140,9,9);ctx.fill();
+ctx.fillStyle=p[2];roundRect(70,885,(w-140)Math.max(0,Math.min(1,local)),9,9);ctx.fill();
 }
 function drawSmooth(index,local){
-  const fadeWindow=.12;
-  if(index===0||local>=fadeWindow){drawScene(index,local);return}
-  const mainCtx=ctx;
-  ctx=transitionCtxA;drawScene(index-1,1);
-  ctx=transitionCtxB;drawScene(index,local/fadeWindow);
-  ctx=mainCtx;
-  mainCtx.clearRect(0,0,canvas.width,canvas.height);
-  mainCtx.globalAlpha=1-local/fadeWindow;mainCtx.drawImage(transitionA,0,0);
-  mainCtx.globalAlpha=local/fadeWindow;mainCtx.drawImage(transitionB,0,0);
-  mainCtx.globalAlpha=1;
+const fadeWindow=.12;
+if(index===0||local>=fadeWindow){drawScene(index,local);return}
+const mainCtx=ctx;
+ctx=transitionCtxA;drawScene(index-1,1);
+ctx=transitionCtxB;drawScene(index,local/fadeWindow);
+ctx=mainCtx;
+mainCtx.clearRect(0,0,canvas.width,canvas.height);
+mainCtx.globalAlpha=1-local/fadeWindow;mainCtx.drawImage(transitionA,0,0);
+mainCtx.globalAlpha=local/fadeWindow;mainCtx.drawImage(transitionB,0,0);
+mainCtx.globalAlpha=1;
 }
 function frame(now){
-  if(!playing)return;
-  const elapsed=now-startedAt,total=15000;
-  if(elapsed>=total){playing=false;drawScene(2,1);$('bar').style.width='100%';setStatus('미리보기 재생이 끝났어요.');return}
-  const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-  drawSmooth(index,local);$('bar').style.width=(elapsed/total*100)+'%';
-  raf=requestAnimationFrame(frame);
+if(!playing)return;
+const elapsed=now-startedAt,total=15000;
+if(elapsed>=total){playing=false;drawScene(2,1);$('bar').style.width='100%';setStatus('미리보기 재생이 끝났어요.');return}
+const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
+drawSmooth(index,local);$('bar').style.width=(elapsed/total100)+'%';
+raf=requestAnimationFrame(frame);
 }
 function play(){
-  if(!scenes.length&&!makeScenes())return;
-  cancelAnimationFrame(raf);playing=true;startedAt=performance.now();
-  $('bar').style.width='0%';setStatus('미리보기를 재생하고 있어요.');raf=requestAnimationFrame(frame);
+if(!scenes.length&&!makeScenes())return;
+cancelAnimationFrame(raf);playing=true;startedAt=performance.now();
+$('bar').style.width='0%';setStatus('미리보기를 재생하고 있어요.');raf=requestAnimationFrame(frame);
 }
 function stop(){
-  playing=false;cancelAnimationFrame(raf);$('bar').style.width='0%';
-  if(scenes.length)drawScene(0,0);else drawScene(0,0);
-  setStatus('재생을 멈췄어요.');
+playing=false;cancelAnimationFrame(raf);$('bar').style.width='0%';
+if(scenes.length)drawScene(0,0);else drawScene(0,0);
+setStatus('재생을 멈췄어요.');
 }
 function supportedMime(){
-  const types=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm'];
-  for(const type of types){if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type))return type}
-  return '';
+const types=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm'];
+for(const type of types){if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type))return type}
+return '';
 }
 async function exportVideo(){
-  if(!scenes.length&&!makeScenes())return;
-  if(!canvas.captureStream||!window.MediaRecorder){setStatus('이 브라우저에서는 영상 녹화를 지원하지 않아요. 아이패드 Safari를 최신 버전으로 업데이트해 주세요.');return}
-  const mime=supportedMime();
-  if(!mime){setStatus('이 브라우저에서 지원하는 영상 형식을 찾지 못했어요.');return}
-  $('exportBtn').disabled=true;$('makeBtn').disabled=true;$('previewBtn').disabled=true;
-  recordedChunks=[];
-  try{
-    const stream=canvas.captureStream(30);
-    recorder=new MediaRecorder(stream,{mimeType:mime});
-    recorder.ondataavailable=e=>{if(e.data&&e.data.size)recordedChunks.push(e.data)};
-    recorder.onerror=()=>setStatus('녹화 중 오류가 발생했어요. 다시 시도해 주세요.');
-    recorder.onstop=()=>{
-      const blob=new Blob(recordedChunks,{type:recorder.mimeType||mime});
-      const url=URL.createObjectURL(blob),a=document.createElement('a');
-      a.href=url;a.download='HOKI-2.2-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
-      document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
-      stream.getTracks().forEach(t=>t.stop());
-      $('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
-      setStatus('영상 저장을 요청했어요. 파일 앱의 다운로드 폴더를 확인해 주세요. 형식: '+blob.type);
-    };
-    recorder.start();
-    const start=performance.now();
-    function recordFrame(now){
-      const elapsed=now-start;
-      if(elapsed>=15000){drawScene(2,1);recorder.stop();$('bar').style.width='100%';return}
-      const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-      drawSmooth(index,local);$('bar').style.width=(elapsed/15000*100)+'%';
-      requestAnimationFrame(recordFrame);
-    }
-    setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
-    requestAnimationFrame(recordFrame);
-  }catch(err){
-    $('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
-    setStatus('영상 저장을 시작하지 못했어요: '+err.message);
-  }
+if(!scenes.length&&!makeScenes())return;
+if(!canvas.captureStream||!window.MediaRecorder){setStatus('이 브라우저에서는 영상 녹화를 지원하지 않아요. 아이패드 Safari를 최신 버전으로 업데이트해 주세요.');return}
+const mime=supportedMime();
+if(!mime){setStatus('이 브라우저에서 지원하는 영상 형식을 찾지 못했어요.');return}
+$('exportBtn').disabled=true;$('makeBtn').disabled=true;$('previewBtn').disabled=true;
+recordedChunks=[];
+try{
+const stream=canvas.captureStream(30);
+recorder=new MediaRecorder(stream,{mimeType:mime});
+recorder.ondataavailable=e=>{if(e.data&&e.data.size)recordedChunks.push(e.data)};
+recorder.onerror=()=>setStatus('녹화 중 오류가 발생했어요. 다시 시도해 주세요.');
+recorder.onstop=()=>{
+const blob=new Blob(recordedChunks,{type:recorder.mimeType||mime});
+const url=URL.createObjectURL(blob),a=document.createElement('a');
+a.href=url;a.download='HOKI-2.3-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
+document.body.appendChild(a);a.click();a.remove();
+setTimeout(()=>URL.revokeObjectURL(url),60000);
+stream.getTracks().forEach(t=>t.stop());
+$('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
+setStatus('영상 저장을 요청했어요. 파일 앱의 다운로드 폴더를 확인해 주세요. 형식: '+blob.type);
+};
+recorder.start();
+const start=performance.now();
+function recordFrame(now){
+const elapsed=now-start;
+if(elapsed>=15000){drawScene(2,1);recorder.stop();$('bar').style.width='100%';return}
+const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
+drawSmooth(index,local);$('bar').style.width=(elapsed/15000100)+'%';
+requestAnimationFrame(recordFrame);
+}
+setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
+requestAnimationFrame(recordFrame);
+}catch(err){
+$('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
+setStatus('영상 저장을 시작하지 못했어요: '+err.message);
+}
 }
 $('makeBtn').addEventListener('click',makeScenes);
 $('previewBtn').addEventListener('click',play);
 $('stopBtn').addEventListener('click',stop);
 $('exportBtn').addEventListener('click',exportVideo);
-$('style').addEventListener('change',()=>{activePalette=palettes[$('style').value]||palettes.warm;if(scenes.length)drawScene(0,0)});
+$('style').addEventListener('change',()=>{activePalette=palettes[$('style').value]||palettes.warm;syncBackgroundInputs();if(scenes.length)drawScene(0,0)});
+for(let i=0;i<3;i++)$('bgColor'+i).addEventListener('input',e=>{chosenBackgrounds[i]=e.target.value;if(scenes.length)drawScene(0,0);else drawScene(0,0);setStatus((i+1)+'장면 배경색을 변경했어요.');});
 $('subtitleSize').addEventListener('change',()=>{if(scenes.length)drawScene(0,0)});
 $('subtitlePosition').addEventListener('change',()=>{if(scenes.length)drawScene(0,0)});
-activePalette=palettes.warm;drawScene(0,0);
+activePalette=palettes.warm;syncBackgroundInputs();drawScene(0,0);
 })();
 </script>
+
 </body>
 </html>
