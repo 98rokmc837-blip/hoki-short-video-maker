@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#101827">
-<title>HOKI 2.1 - 쇼츠 메이커</title>
+<title>HOKI 2.2 - 쇼츠 메이커</title>
 <style>
 :root{--bg:#0b1220;--panel:#131e30;--line:#26364d;--text:#f3f6fb;--muted:#a9b6c9;--accent:#91aaff;--good:#63d6a5}
 *{box-sizing:border-box}
@@ -43,7 +43,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <body>
 <div class="wrap">
 <header class="top">
-  <div class="brand">HOKI <span>2.1</span></div>
+  <div class="brand">HOKI <span>2.2</span></div>
   <div class="tag">무료 쇼츠 메이커 · 15초</div>
 </header>
 <main class="layout">
@@ -62,7 +62,24 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <option value="calm">차분하고 잔잔한</option>
       <option value="bold">강렬하고 단호한</option>
     </select>
-    <div class="hint">선택한 배경은 영상 15초 동안 그대로 유지돼요.</div>
+    <div class="hint">장면마다 서로 다른 배경색이 자동으로 적용돼요.</div>
+  </div>
+  <div class="field">
+    <label for="subtitleSize">자막 글자 크기</label>
+    <select id="subtitleSize">
+      <option value="36">작게</option>
+      <option value="43" selected>보통</option>
+      <option value="50">크게</option>
+      <option value="56">아주 크게</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="subtitlePosition">자막 위치</label>
+    <select id="subtitlePosition">
+      <option value="upper">위쪽</option>
+      <option value="middle" selected>가운데</option>
+      <option value="lower">아래쪽</option>
+    </select>
   </div>
   <div class="field">
     <label for="signature">마지막 서명 (선택)</label>
@@ -79,7 +96,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <div class="btns"><button id="exportBtn" disabled>15초 영상 저장</button></div>
   <div class="progress"><div class="bar" id="bar"></div></div>
   <div class="status" id="status" aria-live="polite">준비 완료. 주제를 입력해 주세요.</div>
-  <p class="hint">※ 3장면 자막, 5초 간격 전환, 9:16 세로 영상 저장을 지원해요. AI 음성·외부 이미지 자동 생성은 포함되지 않아요.</p>
+  <p class="hint">※ 3장면별 다른 배경, 자막 크기·위치 조절, 부드러운 전환, 9:16 세로 영상 저장을 지원해요. 음성·외부 이미지 자동 생성은 포함되지 않아요.</p>
 </section>
 <aside class="panel">
   <h2>2. 세로 영상 미리보기</h2>
@@ -87,13 +104,17 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <div class="hint" style="margin-top:12px">화면 비율 9:16 · 총 15초 · 장면당 5초</div>
 </aside>
 </main>
-<div class="foot">HOKI 2.1 · 배경은 그대로, 이야기는 5초마다</div>
+<div class="foot">HOKI 2.2 · 장면별 배경 · 자막 조절 · 부드러운 전환</div>
 </div>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const canvas=$('canvas'),ctx=canvas.getContext('2d');
+const canvas=$('canvas');
+let ctx=canvas.getContext('2d');
+const transitionA=document.createElement('canvas'),transitionB=document.createElement('canvas');
+transitionA.width=transitionB.width=canvas.width;transitionA.height=transitionB.height=canvas.height;
+const transitionCtxA=transitionA.getContext('2d'),transitionCtxB=transitionB.getContext('2d');
 let scenes=[],playing=false,raf=0,startedAt=0,recorder=null,recordedChunks=[];
 const palettes={
  warm:['#372b4d','#b56d72','#ffe1bd'],
@@ -101,7 +122,14 @@ const palettes={
  calm:['#17283a','#526d82','#e0e9f0'],
  bold:['#351b2b','#a33d4c','#fff0df']
 };
+const scenePalettes={
+ warm:[['#302744','#72506d','#ffe1bd'],['#563548','#b56d72','#ffe1bd'],['#59412f','#c1845f','#fff0df']],
+ hope:[['#102846','#28627d','#f5e6ad'],['#17445a','#278a91','#f5e6ad'],['#26365f','#6277b8','#fff0c2']],
+ calm:[['#17283a','#526d82','#e0e9f0'],['#263b4b','#66808d','#e8f0f2'],['#344653','#788c91','#f0eee4']],
+ bold:[['#351b2b','#883b50','#fff0df'],['#4a2032','#b34b55','#fff0df'],['#572b25','#bd6545','#fff3dc']]
+};
 let activePalette=palettes.warm;
+function paletteForScene(index){return (scenePalettes[$('style').value]||scenePalettes.warm)[index]||palettes.warm;}
 
 function setStatus(message){$('status').textContent=message}
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -137,7 +165,7 @@ function makeScenes(){
   $('exportBtn').disabled=false;
   activePalette=palettes[$('style').value]||palettes.warm;
   drawScene(0,0);
-  setStatus('3개 장면을 만들었어요. 배경은 유지되고 자막만 5초마다 바뀝니다.');
+  setStatus('3개 장면을 만들었어요. 장면마다 배경이 달라지고 전환은 부드럽게 이어져요.');
   return true;
 }
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
@@ -152,8 +180,8 @@ function wrapKorean(text,maxWidth,font){
   if(line)lines.push(line);
   return lines;
 }
-function drawBackground(){
-  const w=canvas.width,h=canvas.height,p=activePalette;
+function drawBackground(index){
+  const w=canvas.width,h=canvas.height,p=paletteForScene(index);
   const grad=ctx.createLinearGradient(0,0,w,h);
   grad.addColorStop(0,p[0]);grad.addColorStop(1,p[1]);
   ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
@@ -165,27 +193,27 @@ function drawBackground(){
   ctx.restore();
 }
 function drawScene(index,local){
-  const w=canvas.width,h=canvas.height,p=activePalette;
-  const s=scenes[index]||{title:'HOKI 2.1',text:'당신의 이야기를 짧은 영상으로 만들어 보세요.'};
-  drawBackground();
+  const w=canvas.width,h=canvas.height,p=paletteForScene(index);
+  const s=scenes[index]||{title:'HOKI 2.2',text:'당신의 이야기를 짧은 영상으로 만들어 보세요.'};
+  drawBackground(index);
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillStyle=p[2];ctx.font='bold 25px sans-serif';
-  ctx.fillText('H O K I   2 . 1',w/2,100);
+  ctx.fillText('H O K I   2 . 2',w/2,100);
   ctx.fillStyle='rgba(255,255,255,.14)';roundRect(38,190,w-76,560,30);ctx.fill();
   const fade=Math.min(1,local/.35,(1-local)/.35);
   ctx.save();ctx.globalAlpha=Math.max(.18,Math.min(1,fade));
   ctx.fillStyle=p[2];ctx.font='bold 32px sans-serif';
   ctx.fillText(s.title,w/2,275);
-  const font='bold 43px sans-serif';
-  let lines=wrapKorean(s.text,w-125,font);
-  let size=43;
-  if(lines.length>7){size=36;lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif')}
-  if(lines.length>9){size=31;lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif')}
+  let size=Number($('subtitleSize').value)||43;
+  let lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif');
+  while(lines.length>9&&size>30){size-=3;lines=wrapKorean(s.text,w-125,'bold '+size+'px sans-serif')}
   ctx.font='bold '+size+'px sans-serif';ctx.fillStyle='#fff';
   ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=8;ctx.shadowOffsetY=3;
-  const lineGap=size*1.55;
+  const lineGap=size*1.48;
   const visible=lines.slice(0,9);
-  let y=470-(visible.length-1)*lineGap/2;
+  const position=$('subtitlePosition').value;
+  const anchorY=position==='upper'?380:(position==='lower'?625:500);
+  let y=anchorY-(visible.length-1)*lineGap/2;
   visible.forEach(line=>{ctx.fillText(line,w/2,y);y+=lineGap});
   ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
   ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='24px sans-serif';
@@ -194,12 +222,24 @@ function drawScene(index,local){
   ctx.fillStyle='rgba(255,255,255,.28)';roundRect(70,885,w-140,9,9);ctx.fill();
   ctx.fillStyle=p[2];roundRect(70,885,(w-140)*Math.max(0,Math.min(1,local)),9,9);ctx.fill();
 }
+function drawSmooth(index,local){
+  const fadeWindow=.12;
+  if(index===0||local>=fadeWindow){drawScene(index,local);return}
+  const mainCtx=ctx;
+  ctx=transitionCtxA;drawScene(index-1,1);
+  ctx=transitionCtxB;drawScene(index,local/fadeWindow);
+  ctx=mainCtx;
+  mainCtx.clearRect(0,0,canvas.width,canvas.height);
+  mainCtx.globalAlpha=1-local/fadeWindow;mainCtx.drawImage(transitionA,0,0);
+  mainCtx.globalAlpha=local/fadeWindow;mainCtx.drawImage(transitionB,0,0);
+  mainCtx.globalAlpha=1;
+}
 function frame(now){
   if(!playing)return;
   const elapsed=now-startedAt,total=15000;
   if(elapsed>=total){playing=false;drawScene(2,1);$('bar').style.width='100%';setStatus('미리보기 재생이 끝났어요.');return}
   const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-  drawScene(index,local);$('bar').style.width=(elapsed/total*100)+'%';
+  drawSmooth(index,local);$('bar').style.width=(elapsed/total*100)+'%';
   raf=requestAnimationFrame(frame);
 }
 function play(){
@@ -232,7 +272,7 @@ async function exportVideo(){
     recorder.onstop=()=>{
       const blob=new Blob(recordedChunks,{type:recorder.mimeType||mime});
       const url=URL.createObjectURL(blob),a=document.createElement('a');
-      a.href=url;a.download='HOKI-2.1-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
+      a.href=url;a.download='HOKI-2.2-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
       document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),60000);
       stream.getTracks().forEach(t=>t.stop());
@@ -245,7 +285,7 @@ async function exportVideo(){
       const elapsed=now-start;
       if(elapsed>=15000){drawScene(2,1);recorder.stop();$('bar').style.width='100%';return}
       const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-      drawScene(index,local);$('bar').style.width=(elapsed/15000*100)+'%';
+      drawSmooth(index,local);$('bar').style.width=(elapsed/15000*100)+'%';
       requestAnimationFrame(recordFrame);
     }
     setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
@@ -260,6 +300,8 @@ $('previewBtn').addEventListener('click',play);
 $('stopBtn').addEventListener('click',stop);
 $('exportBtn').addEventListener('click',exportVideo);
 $('style').addEventListener('change',()=>{activePalette=palettes[$('style').value]||palettes.warm;if(scenes.length)drawScene(0,0)});
+$('subtitleSize').addEventListener('change',()=>{if(scenes.length)drawScene(0,0)});
+$('subtitlePosition').addEventListener('change',()=>{if(scenes.length)drawScene(0,0)});
 activePalette=palettes.warm;drawScene(0,0);
 })();
 </script>
