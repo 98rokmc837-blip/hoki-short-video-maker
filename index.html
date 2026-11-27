@@ -295,43 +295,103 @@ for(const type of types){if(window.MediaRecorder&&MediaRecorder.isTypeSupported&
 return '';
 }
 async function exportVideo(){
-if(!scenes.length&&!makeScenes())return;
-if(!canvas.captureStream||!window.MediaRecorder){setStatus('이 브라우저에서는 영상 녹화를 지원하지 않아요. 아이패드 Safari를 최신 버전으로 업데이트해 주세요.');return}
-const mime=supportedMime();
-if(!mime){setStatus('이 브라우저에서 지원하는 영상 형식을 찾지 못했어요.');return}
-$('exportBtn').disabled=true;$('makeBtn').disabled=true;$('previewBtn').disabled=true;
-recordedChunks=[];
-try{
-const stream=canvas.captureStream(30);
-recorder=new MediaRecorder(stream,{mimeType:mime});
-recorder.ondataavailable=e=>{if(e.data&&e.data.size)recordedChunks.push(e.data)};
-recorder.onerror=()=>setStatus('녹화 중 오류가 발생했어요. 다시 시도해 주세요.');
-recorder.onstop=()=>{
-const blob=new Blob(recordedChunks,{type:recorder.mimeType||mime});
-const url=URL.createObjectURL(blob),a=document.createElement('a');
-a.href=url;a.download='HOKI-2.3-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
-document.body.appendChild(a);a.click();a.remove();
-setTimeout(()=>URL.revokeObjectURL(url),60000);
-stream.getTracks().forEach(t=>t.stop());
-$('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
-setStatus('영상 저장을 요청했어요. 파일 앱의 다운로드 폴더를 확인해 주세요. 형식: '+blob.type);
-};
-recorder.start();
-const start=performance.now();
-function recordFrame(now){
-const elapsed=now-start;
-if(elapsed>=15000){drawScene(2,1);recorder.stop();$('bar').style.width='100%';return}
-const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
+ if(!scenes.length&&!makeScenes())return;
+ if(!canvas.captureStream||!window.MediaRecorder){
+  setStatus('이 브라우저에서는 영상 녹화를 지원하지 않아요.');
+  return;
+ }
+ const mime=supportedMime();
+ if(!mime){
+  setStatus('지원하는 영상 형식을 찾지 못했어요.');
+  return;
+ }
+ const exportBtn=$('exportBtn');
+ const makeBtn=$('makeBtn');
+ const previewBtn=$('previewBtn');
+ exportBtn.disabled=true;
+ makeBtn.disabled=true;
+ previewBtn.disabled=true;
+ recordedChunks=[];
+ let stream=null;
+ let frameId=0;
+ let failed=false;
+ let cleaned=false;
 
-drawSmooth(index,local);$('bar').style.width=(elapsed/15000*100)+'%';
+ function cleanup(){
+  if(cleaned)return;
+  cleaned=true;
+  cancelAnimationFrame(frameId);
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  exportBtn.disabled=false;
+  makeBtn.disabled=false;
+  previewBtn.disabled=false;
+ }
 
-requestAnimationFrame(recordFrame);
+ try{
+  stream=canvas.captureStream(30);
+  const activeRecorder=new MediaRecorder(stream,{mimeType:mime});
+  recorder=activeRecorder;
+
+  activeRecorder.ondataavailable=e=>{
+   if(e.data&&e.data.size)recordedChunks.push(e.data);
+  };
+
+  activeRecorder.onerror=e=>{
+   failed=true;
+   setStatus('녹화 중 오류가 발생했어요. 다시 시도해 주세요.');
+   if(activeRecorder.state==='recording'){
+    try{activeRecorder.stop()}catch(err){}
+   }
+  };
+
+  activeRecorder.onstop=()=>{
+   if(!failed){
+    const blob=new Blob(recordedChunks,{type:activeRecorder.mimeType||mime});
+    if(blob.size>0){
+     const url=URL.createObjectURL(blob);
+     const a=document.createElement('a');
+     a.href=url;
+     a.download='HOKI-2.4-shorts.'+(blob.type.includes('mp4')?'mp4':'webm');
+     document.body.appendChild(a);
+     a.click();
+     a.remove();
+     setTimeout(()=>URL.revokeObjectURL(url),60000);
+     setStatus('영상 저장을 요청했어요. 파일 앱의 다운로드 폴더를 확인해 주세요.');
+    }else{
+     setStatus('영상 데이터가 비어 있어요. 다시 시도해 주세요.');
+    }
+   }
+   cleanup();
+  };
+
+  activeRecorder.start();
+  const start=performance.now();
+
+  function recordFrame(now){
+   if(activeRecorder.state!=='recording'||failed)return;
+   const elapsed=now-start;
+   if(elapsed>=15000){
+    drawScene(2,1);
+    $('bar').style.width='100%';
+    activeRecorder.stop();
+    return;
+   }
+   const index=Math.min(2,Math.floor(elapsed/5000));
+   const local=(elapsed%5000)/5000;
+   drawSmooth(index,local);
+   $('bar').style.width=(elapsed/15000*100)+'%';
+   frameId=requestAnimationFrame(recordFrame);
+  }
+
+  setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
+  frameId=requestAnimationFrame(recordFrame);
+
+ }catch(err){
+  failed=true;
+  cleanup();
+  setStatus('영상 저장을 시작하지 못했어요: '+err.message);
+ }
 }
-setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
-requestAnimationFrame(recordFrame);
-}catch(err){
-$('exportBtn').disabled=false;$('makeBtn').disabled=false;$('previewBtn').disabled=false;
-setStatus('영상 저장을 시작하지 못했어요: '+err.message);
 }
 }
 $('makeBtn').addEventListener('click',makeScenes);
