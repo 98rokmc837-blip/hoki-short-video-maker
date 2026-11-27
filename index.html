@@ -274,7 +274,9 @@ if(!playing)return;
 const elapsed=now-startedAt,total=15000;
 if(elapsed>=total){playing=false;drawScene(2,1);$('bar').style.width='100%';setStatus('미리보기 재생이 끝났어요.');return}
 const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-drawSmooth(index,local);$('bar').style.width=(elapsed/total100)+'%';
+
+drawSmooth(index,local);$('bar').style.width=(elapsed/total*100)+'%';
+
 raf=requestAnimationFrame(frame);
 }
 function play(){
@@ -320,7 +322,9 @@ function recordFrame(now){
 const elapsed=now-start;
 if(elapsed>=15000){drawScene(2,1);recorder.stop();$('bar').style.width='100%';return}
 const index=Math.min(2,Math.floor(elapsed/5000)),local=(elapsed%5000)/5000;
-drawSmooth(index,local);$('bar').style.width=(elapsed/15000100)+'%';
+
+drawSmooth(index,local);$('bar').style.width=(elapsed/15000*100)+'%';
+
 requestAnimationFrame(recordFrame);
 }
 setStatus('15초 영상을 녹화하고 있어요. 화면을 닫지 말고 기다려 주세요.');
