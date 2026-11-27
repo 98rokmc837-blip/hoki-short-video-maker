@@ -244,14 +244,18 @@ const lineGap=size*1.48;
 const visible=lines.slice(0,9);
 const position=$('subtitlePosition').value;
 const anchorY=position==='upper'?380:(position==='lower'?625:500);
-let y=anchorY-(visible.length-1)lineGap/2;
+
+let y=anchorY-((visible.length-1)*lineGap)/2;
+
 visible.forEach(line=>{ctx.fillText(line,w/2,y);y+=lineGap});
 ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
 ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='24px sans-serif';
 ctx.fillText(index===2?'끝까지 시청해 주셔서 감사합니다':'당신의 하루에 작은 울림이 되기를',w/2,810);
 ctx.restore();
 ctx.fillStyle='rgba(255,255,255,.28)';roundRect(70,885,w-140,9,9);ctx.fill();
-ctx.fillStyle=p[2];roundRect(70,885,(w-140)Math.max(0,Math.min(1,local)),9,9);ctx.fill();
+
+ctx.fillStyle=p[2];roundRect(70,885,(w-140)*Math.max(0,Math.min(1,local)),9,9);ctx.fill();
+
 }
 function drawSmooth(index,local){
 const fadeWindow=.12;
