@@ -138,6 +138,7 @@ const transitionA=document.createElement('canvas'),transitionB=document.createEl
 transitionA.width=transitionB.width=canvas.width;transitionA.height=transitionB.height=canvas.height;
 const transitionCtxA=transitionA.getContext('2d'),transitionCtxB=transitionB.getContext('2d');
 let scenes=[],playing=false,raf=0,startedAt=0,recorder=null,recordedChunks=[];
+let selectedMedia=[];
 const palettes={
  warm:['#372b4d','#b56d72','#ffe1bd'],
  hope:['#122b4b','#277b91','#f5e6ad'],
@@ -236,6 +237,17 @@ function drawScene(index,local){
 const w=canvas.width,h=canvas.height,p=paletteForScene(index);
 const s=scenes[index]||{title:'HOKI 2.3',text:'당신의 이야기를 짧은 영상으로 만들어 보세요.'};
 drawBackground(index);
+const photos=selectedMedia.filter(item=>item.type==='image');
+const photo=photos.length?photos[index%photos.length]:null;
+
+if(photo&&photo.element.complete&&photo.element.naturalWidth>0){
+  const iw=photo.element.naturalWidth;
+  const ih=photo.element.naturalHeight;
+  const scale=Math.max(w/iw,h/ih);
+  const dw=iw*scale;
+  const dh=ih*scale;
+  ctx.drawImage(photo.element,(w-dw)/2,(h-dh)/2,dw,dh);
+}
 ctx.textAlign='center';ctx.textBaseline='middle';
 ctx.fillStyle=p[2];ctx.font='bold 25px sans-serif';
 ctx.fillText('H O K I   2 . 2',w/2,100);
@@ -408,11 +420,14 @@ $('makeBtn').addEventListener('click',makeScenes);
 let mediaPreviewUrls = [];
 
 function showMediaPreview() {
+
+function showMediaPreview() {
   const input = $('mediaInput');
   const preview = $('mediaPreview');
 
   mediaPreviewUrls.forEach(url => URL.revokeObjectURL(url));
   mediaPreviewUrls = [];
+  selectedMedia = [];
   preview.innerHTML = '';
 
   const files = Array.from(input.files || []);
@@ -429,29 +444,42 @@ function showMediaPreview() {
     ) return;
 
     const card = document.createElement('div');
-    card.style.cssText = 'min-width:0;background:#131e30;padding:8px;border-radius:10px;';
+    card.style.cssText =
+      'min-width:0;background:#131e30;padding:8px;border-radius:10px;';
 
     const url = URL.createObjectURL(file);
     mediaPreviewUrls.push(url);
 
+    const type = file.type.startsWith('image/') ? 'image' : 'video';
     let media;
 
-    if (file.type.startsWith('image/')) {
+    if (type === 'image') {
       media = document.createElement('img');
       media.alt = file.name;
     } else {
       media = document.createElement('video');
       media.controls = true;
       media.playsInline = true;
+      media.muted = true;
+      media.loop = true;
       media.preload = 'metadata';
     }
 
     media.src = url;
-    media.style.cssText = 'width:100%;max-height:180px;object-fit:contain;border-radius:8px;';
+    media.style.cssText =
+      'width:100%;max-height:180px;object-fit:contain;border-radius:8px;';
+
+    selectedMedia.push({
+      file: file,
+      url: url,
+      type: type,
+      element: media
+    });
 
     const name = document.createElement('p');
     name.textContent = file.name;
-    name.style.cssText = 'font-size:11px;color:white;word-break:break-all;';
+    name.style.cssText =
+      'font-size:11px;color:white;word-break:break-all;';
 
     card.appendChild(media);
     card.appendChild(name);
@@ -460,9 +488,10 @@ function showMediaPreview() {
 
   if (preview.childElementCount === 0) {
     preview.textContent = '미리 볼 수 있는 사진이나 영상이 없어요.';
+  } else {
+    setStatus(selectedMedia.length + '개의 사진·동영상을 불러왔어요.');
   }
 }
-
 $('mediaInput').addEventListener('change', showMediaPreview);
 
 $('previewBtn').addEventListener('click',play);
